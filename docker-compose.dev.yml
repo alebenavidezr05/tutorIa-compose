@@ -1,0 +1,30 @@
+# Overrides de desarrollo. Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Publica PostgreSQL (5432) y la API (8000) SOLO en 127.0.0.1 y recarga el backend en caliente.
+# Es el único lugar donde se expone la base de datos, y solo en el equipo del desarrollador.
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+    # Para publicar el puerto, db necesita una red no interna además de `interna`.
+    networks: [interna, dev]
+
+  backend:
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload",
+       "--proxy-headers", "--forwarded-allow-ips", "*"]
+    environment:
+      APP_ENV: development
+      COOKIE_SECURE: "false"
+      # Admite también `npm start` (http://localhost:4200) contra la API publicada en 8000.
+      CORS_ORIGINS: '["http://localhost:8080","http://localhost:4200"]'
+      # Docker Desktop (Windows/macOS) no propaga eventos de archivos: sondeo.
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ${BACKEND_DIR:-./backend}/app:/app/app
+
+networks:
+  dev: {}

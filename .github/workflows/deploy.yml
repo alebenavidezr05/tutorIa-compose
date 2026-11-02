@@ -1,0 +1,77 @@
+name: deploy
+
+# OPCIONAL. Despliegue manual a la EC2 por SSM, sin SSH y sin llaves guardadas (OIDC).
+# Requisitos (ver README, Ruta D, "Despliegue desde GitHub"):
+#   - Entorno "produccion" en GitHub con revisores obligatorios.
+#   - Variables del entorno: AWS_REGION, AWS_ROLE_ARN (rol de deploy/iam/github-oidc-*.json),
+#     EC2_INSTANCE_ID y APP_DOMINIO (p. ej. tutoria.<tu-dominio>). No son secretos.
+# Si prefieres actualizar a mano con deploy/ec2/actualizar.sh por Session Manager, ignora este archivo.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-produccion
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    environment: produccion
+    timeout-minutes: 45
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      INSTANCIA: ${{ vars.EC2_INSTANCE_ID }}
+      DOMINIO: ${{ vars.APP_DOMINIO }}
+    steps:
+      - name: Credenciales de AWS por OIDC
+        uses: aws-actions/configure-aws-credentials@v4.2.1
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Encender la instancia si está detenida
+        run: |
+          estado="$(aws ec2 describe-instances --instance-ids "$INSTANCIA" \
+            --query 'Reservations[0].Instances[0].State.Name' --output text)"
+          echo "Estado: $estado"
+          if [ "$estado" = "stopped" ]; then
+            aws ec2 start-instances --instance-ids "$INSTANCIA" >/dev/null
+            aws ec2 wait instance-running --instance-ids "$INSTANCIA"
+          fi
+          for _ in $(seq 1 40); do
+            ping="$(aws ssm describe-instance-information \
+              --filters "Key=InstanceIds,Values=$INSTANCIA" \
+              --query 'InstanceInformationList[0].PingStatus' --output text)"
+            [ "$ping" = "Online" ] && break
+            sleep 15
+          done
+          test "$ping" = "Online"
+
+      - name: Ejecutar actualizar.sh por SSM
+        run: |
+          id="$(aws ssm send-command --instance-ids "$INSTANCIA" \
+            --document-name AWS-RunShellScript \
+            --comment "TutorIA deploy ${GITHUB_SHA::7}" \
+            --timeout-seconds 600 \
+            --parameters 'commands=["bash /home/ubuntu/tutoria/deploy/ec2/actualizar.sh"],executionTimeout=["2400"]' \
+            --query 'Command.CommandId' --output text)"
+          echo "Comando: $id"
+          for _ in $(seq 1 160); do
+            estado="$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCIA" \
+              --query Status --output text 2>/dev/null || echo Pending)"
+            case "$estado" in
+              Success) break ;;
+              Failed|Cancelled|TimedOut) break ;;
+            esac
+            sleep 15
+          done
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCIA" \
+            --query '{estado:Status,salida:StandardOutputContent,error:StandardErrorContent}' --output text
+          test "$estado" = "Success"
+
+      - name: Verificar la app
+        run: curl -fsS --retry 10 --retry-delay 10 --retry-all-errors "https://$DOMINIO/api/v1/health/ready"

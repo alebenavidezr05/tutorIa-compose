@@ -1,0 +1,4 @@
+# Apagado automático de TutorIA por inactividad (se instala en /etc/cron.d/tutoria-apagado).
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * root /usr/local/bin/apagar-si-inactivo.sh

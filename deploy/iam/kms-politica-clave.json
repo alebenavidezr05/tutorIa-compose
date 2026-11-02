@@ -1,0 +1,19 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AdministracionPorLaCuenta",
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::<cuenta>:root" },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "UsoPorElRolDeLaInstancia",
+      "Effect": "Allow",
+      "Principal": { "AWS": "arn:aws:iam::<cuenta>:role/tutoria-ec2" },
+      "Action": ["kms:Decrypt", "kms:GenerateDataKey", "kms:DescribeKey"],
+      "Resource": "*"
+    }
+  ]
+}

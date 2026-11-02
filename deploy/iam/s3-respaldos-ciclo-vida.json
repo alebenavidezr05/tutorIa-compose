@@ -1,0 +1,11 @@
+{
+  "Rules": [
+    {
+      "ID": "expirar-respaldos",
+      "Status": "Enabled",
+      "Filter": {},
+      "Expiration": { "Days": 30 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+    }
+  ]
+}

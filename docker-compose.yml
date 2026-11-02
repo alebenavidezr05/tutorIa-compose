@@ -1,0 +1,88 @@
+# TutorIA: el mismo archivo para desarrollo (tu equipo) y producción (EC2); cambia solo el .env.
+# Tres servicios, tres redes y cuatro volúmenes con nombre. Solo `frontend` publica puertos.
+#
+#   Navegador ──▶ frontend (Caddy) ──▶ backend (FastAPI) ──▶ db (PostgreSQL)
+#                 redes: web+interna   redes: interna+salida  red: interna (sin internet)
+#
+# ATENCIÓN: `docker compose config` imprime los valores del .env (secretos incluidos).
+# No pegues su salida en ningún lado.
+
+name: tutoria
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en .env}
+    volumes: [tutoria_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [interna]
+    logging: *logging
+
+  backend:
+    # Por defecto ./backend (clon de tutorIa-backend). BACKEND_DIR permite otra ubicación.
+    build: ${BACKEND_DIR:-./backend}
+    restart: unless-stopped
+    stop_grace_period: 20s
+    depends_on: { db: { condition: service_healthy } }
+    # Todas las variables del .env de la raíz llegan SOLO a este servicio (llaves de IA incluidas).
+    # Las que no definas toman el valor por defecto de Settings (prompt 01 §17).
+    env_file:
+      - path: .env
+        required: false
+    # Estas se calculan aquí y tienen prioridad sobre el .env.
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Red interna sin salida: no se usa TLS hacia la base de datos.
+      DB_SSLMODE: disable
+      APP_ENV: ${APP_ENV:-development}
+      # Settings espera una lista JSON con el origen exacto (sin comodines).
+      CORS_ORIGINS: '["${APP_ORIGIN:-http://localhost:8080}"]'
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      KMS_REGION: ${KMS_REGION:-${AWS_REGION:-us-east-1}}
+      ALMACEN_RUTA_LOCAL: /data/archivos
+    volumes: [tutoria_archivos:/data/archivos]
+    networks: [interna, salida]
+    logging: *logging
+
+  frontend:
+    # Por defecto ./frontend (clon de tutorIa-frontend). FRONTEND_DIR permite otra ubicación.
+    build: ${FRONTEND_DIR:-./frontend}
+    restart: unless-stopped
+    depends_on: { backend: { condition: service_healthy } }
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      # Local: solo 127.0.0.1 (nadie de tu red lo ve). EC2: WEB_BIND=0.0.0.0, 80 y 443.
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:80"
+      - "${WEB_BIND:-127.0.0.1}:${WEB_HTTPS_PORT:-8443}:443"
+    # caddy_data guarda certificados y la cuenta ACME: no lo borres en producción.
+    volumes: [caddy_data:/data, caddy_config:/config]
+    networks: [interna, web]
+    logging: *logging
+
+networks:
+  interna: { internal: true }
+  salida: {}
+  web: {}
+
+volumes:
+  tutoria_pgdata: {}
+  tutoria_archivos: {}
+  caddy_data: {}
+  caddy_config: {}

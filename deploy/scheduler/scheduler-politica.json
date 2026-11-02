@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ec2:StartInstances", "ec2:StopInstances"],
+      "Resource": "arn:aws:ec2:<region>:<cuenta>:instance/<instance-id>"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "kms:CreateGrant",
+      "Resource": "arn:aws:kms:<region>:<cuenta>:key/<kms-key-id>",
+      "Condition": { "Bool": { "kms:GrantIsForAWSResource": "true" } }
+    }
+  ]
+}

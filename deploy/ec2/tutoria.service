@@ -1,0 +1,18 @@
+[Unit]
+Description=TutorIA (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/ubuntu/tutoria
+ExecStart=/usr/bin/docker compose up -d
+# Detiene con gracia (PostgreSQL tiene stop_grace_period de 30 s).
+ExecStop=/usr/bin/docker compose stop -t 30
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

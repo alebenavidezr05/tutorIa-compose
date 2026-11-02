@@ -1,0 +1,41 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "KmsClaveDelProyecto",
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt", "kms:GenerateDataKey"],
+      "Resource": "arn:aws:kms:<region>:<cuenta>:key/<kms-key-id>"
+    },
+    {
+      "Sid": "ArchivosObjetos",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::<bucket-archivos>/*"
+    },
+    {
+      "Sid": "ArchivosListar",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::<bucket-archivos>"
+    },
+    {
+      "Sid": "Respaldos",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::<bucket-respaldos>/*"
+    },
+    {
+      "Sid": "CorreoDesdeRemitenteVerificado",
+      "Effect": "Allow",
+      "Action": ["ses:SendEmail", "ses:SendRawEmail"],
+      "Resource": [
+        "arn:aws:ses:<region>:<cuenta>:identity/<dominio>",
+        "arn:aws:ses:<region>:<cuenta>:configuration-set/tutoria"
+      ],
+      "Condition": {
+        "StringEquals": { "ses:FromAddress": "no-responder@<dominio>" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DescribirNoAdmiteRecurso",
+      "Effect": "Allow",
+      "Action": ["ec2:DescribeInstances", "ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EncenderEstaInstancia",
+      "Effect": "Allow",
+      "Action": "ec2:StartInstances",
+      "Resource": "arn:aws:ec2:<region>:<cuenta>:instance/<instance-id>"
+    },
+    {
+      "Sid": "EjecutarActualizacion",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ec2:<region>:<cuenta>:instance/<instance-id>",
+        "arn:aws:ssm:<region>::document/AWS-RunShellScript"
+      ]
+    }
+  ]
+}

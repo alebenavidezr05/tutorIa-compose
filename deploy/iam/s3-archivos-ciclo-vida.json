@@ -1,0 +1,11 @@
+{
+  "Rules": [
+    {
+      "ID": "expirar-archivos-estudiantes",
+      "Status": "Enabled",
+      "Filter": {},
+      "Expiration": { "Days": 180 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+    }
+  ]
+}
